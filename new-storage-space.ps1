@@ -3,20 +3,33 @@
 #Tested with one SSD and two HDD
 #
 #Pool that will suck in all drives
-$StoragePoolName = "My Storage Pool"
+$StoragePoolName = "SSHD Storage Pool"
 #Tiers in the storage pool
 $SSDTierName = "SSDTier"
 $HDDTierName = "HDDTier"
 #Virtual Disk Name made up of disks in both tiers
-$TieredDiskName = "My Tiered VirtualDisk"
+$TieredDiskName = "TieredVirtualDisk"
 
 #Simple = striped.  Mirror only works if both can mirror AFIK
 #https://docs.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2012-R2-and-2012/dn387076(v=ws.11)
 $DriveTierResiliency = "Simple"
 
 #Change to suit - drive later and the label name
-$TieredDriveLetter = "Z"
-$TieredDriveLabel = "StorageDrive"
+$TieredDriveLetter = "D"
+$TieredDriveLabel = "SSHD"
+
+#Drives cannot always be fully allocated - probably broken for drives < 10GB. With lower HDDNonUsableSpace and SSDNonUsableSpace you will get mopre space. But if it is too low - you will get an error.
+$HDDNonUsableSpace = 0.0013
+
+$SSDNonUsableSpace = 0.01
+$WriteBackCachePercentSSD = 0
+
+# If you want to specify WriteBackCache size uncomment this 2 strings and string 96 and comment string 93
+# $SSDNonUsableSpace = 0
+# $WriteBackCachePercentSSD = 0.12
+
+$HDDUsableSpace = 1 - $HDDNonUsableSpace
+$SSDUsableSpace = 1 - $WriteBackCachePercentSSD - $SSDNonUsableSpace
 
 #Override the default sizing here - useful if have two different size SSDs or HDDs - set to smallest of pair
 #These must be Equal or smaller than the disk size available in that tier SSD and HDD
@@ -24,8 +37,6 @@ $TieredDriveLabel = "StorageDrive"
 #set to null so copy/paste to command prompt doesn't have previous run values
 $SSDTierSize = $null
 $HDDTierSize = $null
-#Drives cannot always be fully allocated - probably broken for drives < 10GB
-$UsableSpace = 0.99
 
 #Uncomment and put your HDD type here if it shows up as unspecified with "Get-PhysicalDisk -CanPool $True
 #    If your HDDs show up as Unspecified instead of HDD
@@ -63,20 +74,27 @@ Get-StoragePool -FriendlyName $StoragePoolName | Get-PhysicalDisk | Select Frien
 $SSDTier = New-StorageTier -StoragePoolFriendlyName $StoragePoolName -FriendlyName $SSDTierName -MediaType SSD
 $HDDTier = New-StorageTier -StoragePoolFriendlyName $StoragePoolName -FriendlyName $HDDTierName -MediaType HDD
 
+$WCacheSize = $SSDTierSize*$WriteBackCachePercentSSD
+
 #Calculate tier sizes within this storage pool
 #Can override by setting sizes at top
 if ($SSDTierSize -eq $null){
     $SSDTierSize = (Get-StorageTierSupportedSize -FriendlyName $SSDTierName -ResiliencySettingName $DriveTierResiliency).TierSizeMax
-    $SSDTierSize = [int64]($SSDTierSize * $UsableSpace)
+    $SSDTierSize = [int64]($SSDTierSize * $SSDUsableSpace)
 }
 if ($HDDTierSize -eq $null){
     $HDDTierSize = (Get-StorageTierSupportedSize -FriendlyName $HDDTierName -ResiliencySettingName $DriveTierResiliency).TierSizeMax 
-    $HDDTierSize = [int64]($HDDTierSize * $UsableSpace)
+    $HDDTierSize = [int64]($HDDTierSize * $HDDUsableSpace)
 }
 Write-Output "TierSizes: ( $SSDTierSize , $HDDTierSize )"
 
+
 # you can end up with different number of columns in SSD - Ex: With Simple 1SSD and 2HDD could end up with SSD-1Col, HDD-2Col
-New-VirtualDisk -StoragePoolFriendlyName $StoragePoolName -FriendlyName $TieredDiskName -StorageTiers @($SSDTier, $HDDTier) -StorageTierSizes @($SSDTierSize, $HDDTierSize) -ResiliencySettingName $DriveTierResiliency -AutoWriteCacheSize -AutoNumberOfColumns
+New-VirtualDisk -StoragePoolFriendlyName $StoragePoolName -FriendlyName $TieredDiskName -StorageTiers @($SSDTier, $HDDTier) -StorageTierSizes @($SSDTierSize, $HDDTierSize) -ResiliencySettingName $DriveTierResiliency -AutoWriteCacheSize -AutoNumberOfColumns 
+
+# Before uncomment this string, comment string 93. This string is used if you 
+# New-VirtualDisk -StoragePoolFriendlyName $StoragePoolName -FriendlyName $TieredDiskName -StorageTiers @($SSDTier, $HDDTier) -StorageTierSizes @($SSDTierSize, $HDDTierSize) -ResiliencySettingName $DriveTierResiliency -WriteCacheSize $WCacheSize -AutoNumberOfColumns
+
 
 # initialize the disk, format and mount as a single volume
 Write-Output "preparing volume"
@@ -85,5 +103,7 @@ Get-VirtualDisk $TieredDiskName | Get-Disk | Initialize-Disk -PartitionStyle GPT
 Get-VirtualDisk $TieredDiskName | Get-Disk | New-Partition -DriveLetter $TieredDriveLetter -UseMaximumSize
 Initialize-Volume -DriveLetter $TieredDriveLetter -FileSystem NTFS -Confirm:$false -NewFileSystemLabel $TieredDriveLabel
 Get-Volume -DriveLetter $TieredDriveLetter
+
+Set-StoragePool -FriendlyName "Tier Storage Pool" -IsPowerProtected $True
 
 Write-Output "Operation complete"

@@ -1,53 +1,67 @@
-# Create Storage Spaces in Windows 10
-Windows Server O/S contains Storage Spaces support for Server Spaces tiered storage. 
-You can front slower spinning disks with smaller faster SSDs. 
-Windows 10 has a Storage Spaces GUI Control Panel that does not include the tiered storage GUI. 
+# Create Tiered Storage Spaces in Windows 10
+
+This is a modified version of the scripts that allows you to change the percent of non-usable space on SSD and HDD independently and change the default size of WriteBack Cache.
+
+Original info:
+
+Windows Server O/S contains Storage Spaces support for Server Spaces tiered storage.
+You can front slower spinning disks with smaller faster SSDs.
+Windows 10 has a Storage Spaces GUI Control Panel that does not include the tiered storage GUI.
 This means Powershell must be used for all configuration.
 
 ![Physical Disks](./images_folder/physical-disks.png)
 
 [This repository](https://github.com/freemansoft/win10-storage-spaces) contains scripts that create tiered storage pools that integrate SSDs as caching drives and HDDs as storage drives. They assume you have at least one SSD and one HDD.
 
-* The scripts automatically find all raw drives and add them to the pool.  
+* The scripts automatically find all raw drives and add them to the pool.
 * Some HDDs have their types incorrectly identified.  The script can coerce them to be MediaType:HDD
 * The entire virtual drive is added to the system as a single large volume
-* You need at least 
+* You need at least
   * 1 SSD and 1 HDD to run cached storage / Simple resiliency
-  * 2 SSD and 2 HDD to run cached storage / Mirror resiliency / 
+  * 2 SSD and 2 HDD to run cached storage / Mirror resiliency /
   * 1 SSD and 2 HDD to run cached storage / Simple resiliency / striped storage (sum of HDD space)
 
 ![Simple](./images_folder/simple.png) ![Mirrored](./images_folder/mirror-simple.png) ![Mirrored and Striped](./images_folder/mirror-stripe.png)
 
-# Scripts 
+# Scripts
+
 ## new-storage-space.ps1
+
 Creates a tiered storage pool and allocates all the disk space to a single drive
+
 * You can change the drive letter and label by editing the variables at the top.
 * the script can auto size the drive and cache.  That didn't work for me so the script supports manual sizing.
 
 ## remove-storage-space
+
 Removes the virtual drive, the storage tiers and then the storage pool.
+
 * All drives are returned the _Primordial_ pool
 
 # Sample configuration
+
 *new-storage-space.ps* created a Virtual drive from 3 physical drives
 
-| Physical Drives | Storage Space Virtual Drive|
-|-----------------|-----------------------------|
-| two 2TB HDD     | single 3.6TB data volume _striped_ across my two HDD |
-| one 200GB SSD.  | with a 200GB read/write cache |
 
-![Simple resiliency with striped drives](./images_folder/stripe-simple.png) 
+| Physical Drives | Storage Space Virtual Drive |
+| - | - |
+| two 2TB HDD | single 3.6TB data volume_striped_ across my two HDD |
+| one 200GB SSD. | with a 200GB read/write cache |
+
+![Simple resiliency with striped drives](./images_folder/stripe-simple.png)
 
 ## Win 10 Pro Storage Spaces Control Panel
+
 The control panel does not display or manipulate tiers
 
 <img src="./images_folder/storage-spaces-cp.png" width="500" height="400" />
 
-
 ## ResiliancyName: Simple vs Mirror
+
 The "Mirror" resiliency level attempts to mirror both SSD and HDD tiers so you would need 4 drives run mirror, to mirror both tiers
 
 ## Caching Impact Benchmark
+
 All Storage Pool drives connected to 3Gb/s SATA.  The write-back cache is not used with sequential writes over 256KB
 
 ```
@@ -65,9 +79,12 @@ Sequential 1MiB (Q=  1, T= 1):   154.147 MB/s [    147.0 IOPS]   230.149 MB/s [ 
 
 ```
 
-## Example state 
+## Example state
+
 ### Before script
+
 Three drives can pool.  The HDD drive media types are not recognized
+
 ```
 PS C:\WINDOWS\system32> Get-PhysicalDisk
 Number FriendlyName           SerialNumber         MediaType   CanPool OperationalStatus HealthStatus Usage            Size
@@ -80,6 +97,7 @@ Number FriendlyName           SerialNumber         MediaType   CanPool Operation
 ```
 
 ### After creating Virtual Drive
+
 ```
 PS C:\WINDOWS\system32> Get-PhysicalDisk
 Number FriendlyName           SerialNumber         MediaType CanPool OperationalStatus HealthStatus Usage            Size
@@ -111,5 +129,6 @@ My Tiered VirtualDisk                                             OK            
 ```
 
 # Credits
+
 * Most of the script came from this great [blog article by Nils Schimmelmann](https://nils.schimmelmann.us/post/153541254987/intel-smart-response-technology-vs-windows-10)
 * See [joe's blog](https://joe.blog.freemansoft.com) for any updates
