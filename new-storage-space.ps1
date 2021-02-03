@@ -104,6 +104,7 @@ Get-VirtualDisk $TieredDiskName | Get-Disk | New-Partition -DriveLetter $TieredD
 Initialize-Volume -DriveLetter $TieredDriveLetter -FileSystem NTFS -Confirm:$false -NewFileSystemLabel $TieredDriveLabel
 Get-Volume -DriveLetter $TieredDriveLetter
 
-Set-StoragePool -FriendlyName "Tier Storage Pool" -IsPowerProtected $True
+# Uncomment to increase speed, but this option is dangerous
+# Set-StoragePool -FriendlyName "Tier Storage Pool" -IsPowerProtected $True
 
 Write-Output "Operation complete"
